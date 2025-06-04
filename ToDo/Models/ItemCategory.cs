@@ -1,10 +1,19 @@
-﻿namespace ToDo.Models
+﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+
+namespace ToDo.Models
 {
     public class ItemCategory
     {
         public long Id { get; set; }
-        public string Name { get; set; }
-        public string UserId { get; set; } // Для связи с пользователем
-        public List<TodoItem> TodoItems { get; set; } = new List<TodoItem>(); // Навигационное свойство
+        
+        [Required]
+        public string Name { get; set; } = string.Empty;
+        
+        public string UserId { get; set; } = string.Empty;
+        
+        // Игнорируем это свойство при сериализации, чтобы избежать циклических ссылок
+        [JsonIgnore]
+        public List<TodoItem> TodoItems { get; set; } = new List<TodoItem>();
     }
 }

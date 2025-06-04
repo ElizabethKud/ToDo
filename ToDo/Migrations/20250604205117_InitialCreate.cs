@@ -178,9 +178,10 @@ namespace ToDo.Migrations
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "text", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: false),
                     IsComplete = table.Column<bool>(type: "boolean", nullable: false),
                     UserId = table.Column<string>(type: "text", nullable: false),
-                    CategoryId = table.Column<long>(type: "bigint", nullable: false)
+                    CategoryId = table.Column<long>(type: "bigint", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -190,7 +191,7 @@ namespace ToDo.Migrations
                         column: x => x.CategoryId,
                         principalTable: "ItemCategories",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateIndex(

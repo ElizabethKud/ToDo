@@ -12,7 +12,7 @@ using ToDo.Models;
 namespace ToDo.Migrations
 {
     [DbContext(typeof(TodoContext))]
-    [Migration("20250604190141_InitialCreate")]
+    [Migration("20250604205117_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -250,7 +250,7 @@ namespace ToDo.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<long>("CategoryId")
+                    b.Property<long?>("CategoryId")
                         .HasColumnType("bigint");
 
                     b.Property<bool>("IsComplete")
@@ -259,6 +259,9 @@ namespace ToDo.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -327,8 +330,7 @@ namespace ToDo.Migrations
                     b.HasOne("ToDo.Models.ItemCategory", "Category")
                         .WithMany("TodoItems")
                         .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Category");
                 });

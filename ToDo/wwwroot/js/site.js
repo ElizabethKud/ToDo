@@ -1,427 +1,572 @@
-﻿const todoUri = '/api/TodoItems';
-const categoryUri = '/api/ItemCategories';
-let todos = [];
-let categories = [];
-let token = localStorage.getItem('token');
+﻿// Глобальные переменные
+let authToken = localStorage.getItem("authToken")
+let currentUser = localStorage.getItem("currentUser")
+let todos = []
+let categories = []
+const bootstrap = window.bootstrap // Declare the bootstrap variable
 
-function checkAuth() {
-    if (token) {
-        // Проверяем валидность токена
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const currentTime = Date.now() / 1000;
+// Статусы
+const TodoStatus = {
+    NotStarted: 0,
+    InProgress: 1,
+    Completed: 2,
+}
 
-            if (payload.exp < currentTime) {
-                // Токен истек
-                localStorage.removeItem('token');
-                token = null;
-                checkAuth();
-                return;
-            }
+const StatusNames = {
+    0: "Не выполнено",
+    1: "В процессе",
+    2: "Выполнено",
+}
 
-            document.getElementById('authSection').style.display = 'none';
-            document.getElementById('todoSection').style.display = 'block';
-            getCategories();
-            getItems();
-        } catch (error) {
-            // Неверный токен
-            localStorage.removeItem('token');
-            token = null;
-            checkAuth();
-        }
+const StatusClasses = {
+    0: "text-danger",
+    1: "text-warning",
+    2: "text-success",
+}
+
+const StatusIcons = {
+    0: "fas fa-circle",
+    1: "fas fa-clock",
+    2: "fas fa-check-circle",
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener("DOMContentLoaded", () => {
+    console.log("DOM loaded, checking auth...")
+
+    if (authToken && currentUser) {
+        console.log("User is authenticated:", currentUser)
+        showApp()
     } else {
-        document.getElementById('authSection').style.display = 'block';
-        document.getElementById('todoSection').style.display = 'none';
+        console.log("User is not authenticated")
+        showLogin()
+    }
+
+    setupEventListeners()
+})
+
+// Настройка обработчиков событий
+function setupEventListeners() {
+    // Формы аутентификации
+    document.getElementById("loginForm").addEventListener("submit", handleLogin)
+    document.getElementById("registerForm").addEventListener("submit", handleRegister)
+
+    // Формы создания
+    document.getElementById("categoryForm").addEventListener("submit", handleCreateCategory)
+    document.getElementById("todoForm").addEventListener("submit", handleCreateTodo)
+
+    // Фильтры
+    document.getElementById("filterCategory").addEventListener("change", applyFilters)
+    document.getElementById("filterStatus").addEventListener("change", applyFilters)
+}
+
+// Показать экран входа
+function showLogin() {
+    document.getElementById("loginScreen").style.display = "block"
+    document.getElementById("appScreen").style.display = "none"
+}
+
+// Показать основное приложение
+function showApp() {
+    document.getElementById("loginScreen").style.display = "none"
+    document.getElementById("appScreen").style.display = "block"
+    document.getElementById("userInfo").textContent = `Добро пожаловать, ${currentUser}!`
+
+    loadCategories()
+    loadTodos()
+}
+
+// Обработка входа
+async function handleLogin(e) {
+    e.preventDefault()
+
+    const username = document.getElementById("loginUsername").value
+    const password = document.getElementById("loginPassword").value
+
+    try {
+        const response = await fetch("/api/Auth/login", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ username, password }),
+        })
+
+        const data = await response.json()
+
+        if (response.ok) {
+            authToken = data.token
+            currentUser = username
+            localStorage.setItem("authToken", authToken)
+            localStorage.setItem("currentUser", currentUser)
+
+            showNotification("Вход выполнен успешно!", "success")
+            showApp()
+        } else {
+            showNotification(data.message || "Ошибка входа", "error")
+        }
+    } catch (error) {
+        console.error("Login error:", error)
+        showNotification("Ошибка соединения с сервером", "error")
     }
 }
 
-function login() {
-    const username = document.getElementById('login-username').value.trim();
-    const password = document.getElementById('login-password').value;
+// Обработка регистрации
+async function handleRegister(e) {
+    e.preventDefault()
 
-    if (!username || !password) {
-        alert('Пожалуйста, заполните все поля');
-        return;
+    const username = document.getElementById("registerUsername").value
+    const email = document.getElementById("registerEmail").value
+    const password = document.getElementById("registerPassword").value
+
+    try {
+        const response = await fetch("/api/Auth/register", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ username, email, password }),
+        })
+
+        const data = await response.json()
+
+        if (response.ok) {
+            showNotification("Регистрация успешна! Теперь войдите в систему.", "success")
+            // Переключаемся на вкладку входа
+            document.getElementById("login-tab").click()
+            // Очища��м форму регистрации
+            document.getElementById("registerForm").reset()
+        } else {
+            showNotification(data.message || "Ошибка регистрации", "error")
+        }
+    } catch (error) {
+        console.error("Register error:", error)
+        showNotification("Ошибка соединения с сервером", "error")
     }
-
-    fetch('/api/Auth/Login', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username, password })
-    })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(err => Promise.reject(err));
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.token) {
-                localStorage.setItem('token', data.token);
-                token = data.token;
-                document.getElementById('login-username').value = '';
-                document.getElementById('login-password').value = '';
-                checkAuth();
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка входа:', error);
-            alert(error.Message || 'Ошибка входа в систему');
-        });
 }
 
-function register() {
-    const username = document.getElementById('register-username').value.trim();
-    const email = document.getElementById('register-email').value.trim();
-    const password = document.getElementById('register-password').value;
-
-    if (!username || !email || !password) {
-        alert('Пожалуйста, заполните все поля');
-        return;
-    }
-
-    fetch('/api/Auth/Register', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username, email, password })
-    })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(err => Promise.reject(err));
-            }
-            return response.json();
-        })
-        .then(data => {
-            alert('Регистрация успешна! Теперь войдите в систему.');
-            document.getElementById('register-username').value = '';
-            document.getElementById('register-email').value = '';
-            document.getElementById('register-password').value = '';
-        })
-        .catch(error => {
-            console.error('Ошибка регистрации:', error);
-            alert(error.Message || 'Ошибка регистрации');
-        });
-}
-
+// Выход из системы
 function logout() {
-    localStorage.removeItem('token');
-    token = null;
-    todos = [];
-    categories = [];
-    checkAuth();
+    authToken = null
+    currentUser = null
+    localStorage.removeItem("authToken")
+    localStorage.removeItem("currentUser")
+
+    showNotification("Вы вышли из системы", "info")
+    showLogin()
 }
 
-function getItems() {
-    fetch(todoUri, {
-        headers: {
-            'Authorization': `Bearer ${token}`
+// Загрузка категорий
+async function loadCategories() {
+    try {
+        const response = await fetch("/api/ItemCategories", {
+            headers: {
+                Authorization: `Bearer ${authToken}`,
+            },
+        })
+
+        if (response.ok) {
+            categories = await response.json()
+            updateCategorySelects()
+        } else {
+            console.error("Failed to load categories")
         }
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Ошибка получения списка дел');
-            }
-            return response.json();
-        })
-        .then(data => {
-            todos = data;
-            filterItems();
-        })
-        .catch(error => {
-            console.error('Unable to get items.', error);
-            if (error.message.includes('401')) {
-                logout();
-            }
-        });
-}
-
-function getCategories() {
-    fetch(categoryUri, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Ошибка получения категорий');
-            }
-            return response.json();
-        })
-        .then(data => {
-            categories = data;
-            populateCategoryDropdowns();
-        })
-        .catch(error => {
-            console.error('Unable to get categories.', error);
-            if (error.message.includes('401')) {
-                logout();
-            }
-        });
-}
-
-function populateCategoryDropdowns() {
-    const addCategoryDropdown = document.getElementById('add-category');
-    const editCategoryDropdown = document.getElementById('edit-category');
-    const filterCategoryDropdown = document.getElementById('filter-category');
-
-    addCategoryDropdown.innerHTML = '<option value="">-- Выберите категорию --</option>';
-    editCategoryDropdown.innerHTML = '<option value="">-- Выберите категорию --</option>';
-    filterCategoryDropdown.innerHTML = '<option value="">Все категории</option>';
-
-    categories.forEach(category => {
-        const option1 = document.createElement('option');
-        option1.value = category.id;
-        option1.text = category.name;
-        addCategoryDropdown.appendChild(option1);
-
-        const option2 = document.createElement('option');
-        option2.value = category.id;
-        option2.text = category.name;
-        editCategoryDropdown.appendChild(option2);
-
-        const option3 = document.createElement('option');
-        option3.value = category.id;
-        option3.text = category.name;
-        filterCategoryDropdown.appendChild(option3);
-    });
-}
-
-function addItem() {
-    const addNameTextbox = document.getElementById('add-name');
-    const categoryDropdown = document.getElementById('add-category');
-
-    if (!addNameTextbox.value.trim()) {
-        alert('Пожалуйста, введите название дела');
-        return;
+    } catch (error) {
+        console.error("Error loading categories:", error)
     }
-
-    const item = {
-        isComplete: false,
-        name: addNameTextbox.value.trim(),
-        categoryId: categoryDropdown.value ? parseInt(categoryDropdown.value) : null
-    };
-
-    fetch(todoUri, {
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(item)
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Ошибка добавления дела');
-            }
-            return response.json();
-        })
-        .then(() => {
-            getItems();
-            addNameTextbox.value = '';
-            categoryDropdown.value = '';
-        })
-        .catch(error => {
-            console.error('Unable to add item.', error);
-            alert('Ошибка добавления дела');
-        });
 }
 
-function addCategory() {
-    const categoryNameTextbox = document.getElementById('add-category-name');
+// Обновление выпадающих списков категорий
+function updateCategorySelects() {
+    const selects = ["todoCategory", "editCategory", "filterCategory"]
 
-    if (!categoryNameTextbox.value.trim()) {
-        alert('Пожалуйста, введите название категории');
-        return;
-    }
+    selects.forEach((selectId) => {
+        const select = document.getElementById(selectId)
+        const currentValue = select.value
 
-    const category = {
-        name: categoryNameTextbox.value.trim()
-    };
-
-    fetch(categoryUri, {
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(category)
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Ошибка добавления категории');
-            }
-            return response.json();
-        })
-        .then(() => {
-            getCategories();
-            categoryNameTextbox.value = '';
-        })
-        .catch(error => {
-            console.error('Unable to add category.', error);
-            alert('Ошибка добавления категории');
-        });
-}
-
-function deleteItem(id) {
-    if (!confirm('Вы уверены, что хотите удалить это дело?')) {
-        return;
-    }
-
-    fetch(todoUri + '/' + id, {
-        method: 'DELETE',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Ошибка удаления дела');
-            }
-            getItems();
-        })
-        .catch(error => {
-            console.error('Unable to delete item.', error);
-            alert('Ошибка удаления дела');
-        });
-}
-
-function displayEditForm(id) {
-    const item = todos.find(item => item.id === id);
-
-    document.getElementById('edit-name').value = item.name;
-    document.getElementById('edit-id').value = item.id;
-    document.getElementById('edit-isComplete').checked = item.isComplete;
-    document.getElementById('edit-category').value = item.categoryId || '';
-    document.getElementById('editForm').style.display = 'block';
-}
-
-function updateItem() {
-    const itemId = document.getElementById('edit-id').value;
-    const categoryDropdown = document.getElementById('edit-category');
-    const nameValue = document.getElementById('edit-name').value.trim();
-
-    if (!nameValue) {
-        alert('Пожалуйста, введите название дела');
-        return;
-    }
-
-    const item = {
-        id: parseInt(itemId, 10),
-        isComplete: document.getElementById('edit-isComplete').checked,
-        name: nameValue,
-        categoryId: categoryDropdown.value ? parseInt(categoryDropdown.value) : null
-    };
-
-    fetch(todoUri + '/' + itemId, {
-        method: 'PUT',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(item)
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Ошибка обновления дела');
-            }
-            getItems();
-            closeInput();
-        })
-        .catch(error => {
-            console.error('Unable to update item.', error);
-            alert('Ошибка обновления дела');
-        });
-
-    return false;
-}
-
-function closeInput() {
-    document.getElementById('editForm').style.display = 'none';
-}
-
-function filterItems() {
-    const categoryFilter = document.getElementById('filter-category').value;
-    const statusFilter = document.getElementById('filter-status').value;
-
-    let filteredTodos = todos;
-
-    if (categoryFilter) {
-        filteredTodos = filteredTodos.filter(item => item.categoryId == categoryFilter);
-    }
-
-    if (statusFilter !== '') {
-        const isComplete = statusFilter === 'true';
-        filteredTodos = filteredTodos.filter(item => item.isComplete === isComplete);
-    }
-
-    _displayItems(filteredTodos);
-    _displayCount(filteredTodos.length);
-}
-
-function _displayCount(itemCount) {
-    let name;
-    if (itemCount === 1) {
-        name = 'дело';
-    } else if (itemCount >= 2 && itemCount <= 4) {
-        name = 'дела';
-    } else {
-        name = 'дел';
-    }
-    document.getElementById('counter').innerText = `${itemCount} ${name}`;
-}
-
-function _displayItems(data) {
-    const tBody = document.getElementById('todos');
-    tBody.innerHTML = '';
-
-    const button = document.createElement('button');
-
-    data.forEach(item => {
-        let isCompleteCheckbox = document.createElement('input');
-        isCompleteCheckbox.type = 'checkbox';
-        isCompleteCheckbox.disabled = true;
-        isCompleteCheckbox.checked = item.isComplete;
-
-        let editButton = button.cloneNode(false);
-        editButton.innerText = 'Редактировать';
-        editButton.setAttribute('onclick', 'displayEditForm(' + item.id + ')');
-
-        let deleteButton = button.cloneNode(false);
-        deleteButton.innerText = 'Удалить';
-        deleteButton.setAttribute('onclick', 'deleteItem(' + item.id + ')');
-
-        let tr = tBody.insertRow();
-
-        // Добавляем класс для выполненных дел
-        if (item.isComplete) {
-            tr.style.backgroundColor = '#f0f8f0';
-            tr.style.textDecoration = 'line-through';
-            tr.style.opacity = '0.7';
+        // Очищаем опции, кроме первой
+        while (select.children.length > 1) {
+            select.removeChild(select.lastChild)
         }
 
-        let td1 = tr.insertCell(0);
-        td1.appendChild(isCompleteCheckbox);
+        // Добавляем категории
+        categories.forEach((category) => {
+            const option = document.createElement("option")
+            option.value = category.id
+            option.textContent = category.name
+            select.appendChild(option)
+        })
 
-        let td2 = tr.insertCell(1);
-        let textNode = document.createTextNode(item.name);
-        td2.appendChild(textNode);
+        // Восстанавливаем выбранное значение
+        select.value = currentValue
+    })
+}
 
-        let td3 = tr.insertCell(2);
-        let categoryName = item.category ? item.category.name : 'Без категории';
-        let categoryNode = document.createTextNode(categoryName);
-        td3.appendChild(categoryNode);
+// Создание категории
+async function handleCreateCategory(e) {
+    e.preventDefault()
 
-        let td4 = tr.insertCell(3);
-        td4.appendChild(editButton);
+    const name = document.getElementById("categoryName").value.trim()
 
-        let td5 = tr.insertCell(4);
-        td5.appendChild(deleteButton);
-    });
+    if (!name) {
+        showNotification("Введите название категории", "error")
+        return
+    }
+
+    try {
+        const response = await fetch("/api/ItemCategories", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ name }),
+        })
+
+        if (response.ok) {
+            showNotification("Категория создана успешно!", "success")
+            document.getElementById("categoryForm").reset()
+            loadCategories()
+        } else {
+            const error = await response.json()
+            showNotification(error.message || "Ошибка создания категории", "error")
+        }
+    } catch (error) {
+        console.error("Error creating category:", error)
+        showNotification("Ошибка соединения с сервером", "error")
+    }
+}
+
+// Загрузка дел
+async function loadTodos() {
+    try {
+        const response = await fetch("/api/TodoItems", {
+            headers: {
+                Authorization: `Bearer ${authToken}`,
+            },
+        })
+
+        if (response.ok) {
+            todos = await response.json()
+            renderTodos()
+        } else {
+            console.error("Failed to load todos")
+            showNotification("Ошибка загрузки дел", "error")
+        }
+    } catch (error) {
+        console.error("Error loading todos:", error)
+        showNotification("Ошибка соединения с сервером", "error")
+    }
+}
+
+// Создание дела
+async function handleCreateTodo(e) {
+    e.preventDefault()
+
+    const name = document.getElementById("todoName").value.trim()
+    const categoryId = document.getElementById("todoCategory").value || null
+    const status = Number.parseInt(document.getElementById("todoStatus").value)
+
+    if (!name) {
+        showNotification("Введите название дела", "error")
+        return
+    }
+
+    try {
+        const response = await fetch("/api/TodoItems", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({
+                name,
+                categoryId: categoryId ? Number.parseInt(categoryId) : null,
+                status,
+            }),
+        })
+
+        if (response.ok) {
+            showNotification("Дело создано успешно!", "success")
+            document.getElementById("todoForm").reset()
+            loadTodos()
+        } else {
+            const error = await response.json()
+            showNotification(error.message || "Ошибка создания дела", "error")
+        }
+    } catch (error) {
+        console.error("Error creating todo:", error)
+        showNotification("Ошибка соединения с сервером", "error")
+    }
+}
+
+// Отображение дел
+function renderTodos() {
+    const tbody = document.getElementById("todoList")
+
+    if (todos.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted">
+                    <i class="fas fa-inbox me-2"></i>Нет дел
+                </td>
+            </tr>
+        `
+        return
+    }
+
+    const filteredTodos = getFilteredTodos()
+
+    if (filteredTodos.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted">
+                    <i class="fas fa-search me-2"></i>Нет дел, соответствующих фильтрам
+                </td>
+            </tr>
+        `
+        return
+    }
+
+    tbody.innerHTML = filteredTodos
+        .map(
+            (todo) => `
+        <tr>
+            <td>
+                <strong>${escapeHtml(todo.name)}</strong>
+            </td>
+            <td>
+                ${todo.category ? `<span class="badge bg-secondary">${escapeHtml(todo.category.name)}</span>` : '<span class="text-muted">Без категории</span>'}
+            </td>
+            <td>
+                <select class="form-select form-select-sm" onchange="updateTodoStatus(${todo.id}, this.value)" style="width: auto;">
+                    <option value="0" ${todo.status === 0 ? "selected" : ""}>Не выполнено</option>
+                    <option value="1" ${todo.status === 1 ? "selected" : ""}>В процессе</option>
+                    <option value="2" ${todo.status === 2 ? "selected" : ""}>Выполнено</option>
+                </select>
+            </td>
+            <td>
+                <button class="btn btn-outline-primary btn-sm me-1" onclick="editTodo(${todo.id})" title="Редактировать">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="deleteTodo(${todo.id})" title="Удалить">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `,
+        )
+        .join("")
+}
+
+// Получение отфильтрованных дел
+function getFilteredTodos() {
+    const categoryFilter = document.getElementById("filterCategory").value
+    const statusFilter = document.getElementById("filterStatus").value
+
+    return todos.filter((todo) => {
+        const categoryMatch = !categoryFilter || (todo.categoryId && todo.categoryId.toString() === categoryFilter)
+
+        const statusMatch = statusFilter === "" || todo.status.toString() === statusFilter
+
+        return categoryMatch && statusMatch
+    })
+}
+
+// Применение фильтров
+function applyFilters() {
+    renderTodos()
+}
+
+// Очистка фильтров
+function clearFilters() {
+    document.getElementById("filterCategory").value = ""
+    document.getElementById("filterStatus").value = ""
+    renderTodos()
+}
+
+// Быстрое обновление статуса
+async function updateTodoStatus(id, status) {
+    try {
+        const response = await fetch(`/api/TodoItems/${id}/status`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ status: Number.parseInt(status) }),
+        })
+
+        if (response.ok) {
+            // Обновляем локальные данные
+            const todo = todos.find((t) => t.id === id)
+            if (todo) {
+                todo.status = Number.parseInt(status)
+            }
+            showNotification("Статус обновлен!", "success")
+        } else {
+            const error = await response.json()
+            showNotification(error.message || "Ошибка обновления статуса", "error")
+            loadTodos() // Перезагружаем данные
+        }
+    } catch (error) {
+        console.error("Error updating status:", error)
+        showNotification("Ошибка соединения с сервером", "error")
+        loadTodos() // Перезагружаем данные
+    }
+}
+
+// Редактирование дела
+function editTodo(id) {
+    const todo = todos.find((t) => t.id === id)
+    if (!todo) return
+
+    document.getElementById("editId").value = todo.id
+    document.getElementById("editName").value = todo.name
+    document.getElementById("editCategory").value = todo.categoryId || ""
+    document.getElementById("editStatus").value = todo.status
+
+    // Обновляем категории в модальном окне
+    updateCategorySelects()
+
+    const modal = bootstrap.Modal.getInstance(document.getElementById("editModal"))
+    modal.show()
+}
+
+// Сохранение изменений
+async function saveEdit() {
+    const id = Number.parseInt(document.getElementById("editId").value)
+    const name = document.getElementById("editName").value.trim()
+    const categoryId = document.getElementById("editCategory").value || null
+    const status = Number.parseInt(document.getElementById("editStatus").value)
+
+    if (!name) {
+        showNotification("Введите название дела", "error")
+        return
+    }
+
+    try {
+        const response = await fetch(`/api/TodoItems/${id}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({
+                id,
+                name,
+                categoryId: categoryId ? Number.parseInt(categoryId) : null,
+                status,
+            }),
+        })
+
+        if (response.ok) {
+            showNotification("Дело обновлено успешно!", "success")
+            bootstrap.Modal.getInstance(document.getElementById("editModal")).hide()
+            loadTodos()
+        } else {
+            const error = await response.json()
+            showNotification(error.message || "Ошибка обновления дела", "error")
+        }
+    } catch (error) {
+        console.error("Error updating todo:", error)
+        showNotification("Ошибка соединения с сервером", "error")
+    }
+}
+
+// Удаление дела
+async function deleteTodo(id) {
+    if (!confirm("Вы уверены, что хотите удалить это дело?")) {
+        return
+    }
+
+    try {
+        const response = await fetch(`/api/TodoItems/${id}`, {
+            method: "DELETE",
+            headers: {
+                Authorization: `Bearer ${authToken}`,
+            },
+        })
+
+        if (response.ok) {
+            showNotification("Дело удалено успешно!", "success")
+            loadTodos()
+        } else {
+            const error = await response.json()
+            showNotification(error.message || "Ошибка удаления дела", "error")
+        }
+    } catch (error) {
+        console.error("Error deleting todo:", error)
+        showNotification("Ошибка соединения с сервером", "error")
+    }
+}
+
+// Тест API категорий
+async function testCategoryAPI() {
+    try {
+        const response = await fetch("/api/ItemCategories", {
+            headers: {
+                Authorization: `Bearer ${authToken}`,
+            },
+        })
+
+        if (response.ok) {
+            const data = await response.json()
+            showNotification(`API работает! Найдено категорий: ${data.length}`, "success")
+            console.log("Categories:", data)
+        } else {
+            showNotification("Ошибка API категорий", "error")
+        }
+    } catch (error) {
+        console.error("API test error:", error)
+        showNotification("Ошибка соединения с API", "error")
+    }
+}
+
+// Показ уведомлений
+function showNotification(message, type = "info") {
+    const notifications = document.getElementById("notifications")
+    const id = "notification-" + Date.now()
+
+    const alertClass =
+        {
+            success: "alert-success",
+            error: "alert-danger",
+            warning: "alert-warning",
+            info: "alert-info",
+        }[type] || "alert-info"
+
+    const icon =
+        {
+            success: "fas fa-check-circle",
+            error: "fas fa-exclamation-circle",
+            warning: "fas fa-exclamation-triangle",
+            info: "fas fa-info-circle",
+        }[type] || "fas fa-info-circle"
+
+    const notification = document.createElement("div")
+    notification.id = id
+    notification.className = `alert ${alertClass} alert-dismissible fade show`
+    notification.innerHTML = `
+        <i class="${icon} me-2"></i>${escapeHtml(message)}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `
+
+    notifications.appendChild(notification)
+
+    // Автоматическое удаление через 5 секунд
+    setTimeout(() => {
+        const element = document.getElementById(id)
+        if (element) {
+            const alert = bootstrap.Alert.getOrCreateInstance(element)
+            alert.close()
+        }
+    }, 5000)
+}
+
+// Экранирование HTML
+function escapeHtml(text) {
+    const div = document.createElement("div")
+    div.textContent = text
+    return div.innerHTML
 }
