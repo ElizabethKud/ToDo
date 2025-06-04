@@ -1,0 +1,96 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>To-do List</title>
+    <link rel="stylesheet" href="css/site.css" />
+</head>
+<body>
+<div id="authSection">
+    <h2>Авторизация</h2>
+    <div id="loginForm">
+        <h3>Вход</h3>
+        <form action="javascript:void(0);" onsubmit="login()">
+            <input type="text" id="login-username" placeholder="Имя пользователя">
+            <input type="password" id="login-password" placeholder="Пароль">
+            <input type="submit" value="Войти">
+        </form>
+    </div>
+    <div id="registerForm">
+        <h3>Регистрация</h3>
+        <form action="javascript:void(0);" onsubmit="register()">
+            <input type="text" id="register-username" placeholder="Имя пользователя">
+            <input type="email" id="register-email" placeholder="Email">
+            <input type="password" id="register-password" placeholder="Пароль">
+            <input type="submit" value="Зарегистрироваться">
+        </form>
+    </div>
+</div>
+
+<div id="todoSection" style="display:none;">
+    <h1>Список дел</h1>
+    <button onclick="logout()">Выйти</button>
+
+    <h3>Добавить дело</h3>
+    <form action="javascript:void(0);" method="POST" onsubmit="addItem()">
+        <input type="text" id="add-name" placeholder="Новое дело">
+        <select id="add-category">
+            <option value="">-- Выберите категорию --</option>
+        </select>
+        <input type="submit" value="Добавить">
+    </form>
+
+    <h3>Добавить категорию</h3>
+    <form action="javascript:void(0);" onsubmit="addCategory()">
+        <input type="text" id="add-category-name" placeholder="Название категории">
+        <input type="submit" value="Добавить">
+    </form>
+
+    <h3>Фильтры</h3>
+    <div>
+        <label>Категория:</label>
+        <select id="filter-category" onchange="filterItems()">
+            <option value="">Все категории</option>
+        </select>
+        <label>Статус:</label>
+        <select id="filter-status" onchange="filterItems()">
+            <option value="">Все статусы</option>
+            <option value="true">Выполнено</option>
+            <option value="false">Не выполнено</option>
+        </select>
+    </div>
+
+    <div id="editForm" style="display:none;">
+        <h3>Редактировать</h3>
+        <form action="javascript:void(0);" onsubmit="updateItem()">
+            <input type="hidden" id="edit-id">
+            <input type="checkbox" id="edit-isComplete">
+            <input type="text" id="edit-name">
+            <select id="edit-category">
+                <option value="">-- Выберите категорию --</option>
+            </select>
+            <input type="submit" value="Сохранить">
+            <a onclick="closeInput()" aria-label="Close">✖</a>
+        </form>
+    </div>
+
+    <p id="counter"></p>
+
+    <table>
+        <tr>
+            <th>Выполнено?</th>
+            <th>Название</th>
+            <th>Категория</th>
+            <th></th>
+            <th></th>
+        </tr>
+        <tbody id="todos"></tbody>
+    </table>
+</div>
+
+<script src="js/site.js" asp-append-version="true"></script>
+<script type="text/javascript">
+    checkAuth();
+</script>
+</body>
+</html>
