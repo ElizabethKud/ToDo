@@ -6,10 +6,29 @@ let token = localStorage.getItem('token');
 
 function checkAuth() {
     if (token) {
-        document.getElementById('authSection').style.display = 'none';
-        document.getElementById('todoSection').style.display = 'block';
-        getCategories();
-        getItems();
+        // Проверяем валидность токена
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const currentTime = Date.now() / 1000;
+
+            if (payload.exp < currentTime) {
+                // Токен истек
+                localStorage.removeItem('token');
+                token = null;
+                checkAuth();
+                return;
+            }
+
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('todoSection').style.display = 'block';
+            getCategories();
+            getItems();
+        } catch (error) {
+            // Неверный токен
+            localStorage.removeItem('token');
+            token = null;
+            checkAuth();
+        }
     } else {
         document.getElementById('authSection').style.display = 'block';
         document.getElementById('todoSection').style.display = 'none';
@@ -17,8 +36,13 @@ function checkAuth() {
 }
 
 function login() {
-    const username = document.getElementById('login-username').value;
+    const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
+
+    if (!username || !password) {
+        alert('Пожалуйста, заполните все поля');
+        return;
+    }
 
     fetch('/api/Auth/Login', {
         method: 'POST',
@@ -27,23 +51,36 @@ function login() {
         },
         body: JSON.stringify({ username, password })
     })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => Promise.reject(err));
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.token) {
                 localStorage.setItem('token', data.token);
                 token = data.token;
+                document.getElementById('login-username').value = '';
+                document.getElementById('login-password').value = '';
                 checkAuth();
-            } else {
-                alert('Ошибка входа');
             }
         })
-        .catch(error => console.error('Ошибка входа:', error));
+        .catch(error => {
+            console.error('Ошибка входа:', error);
+            alert(error.Message || 'Ошибка входа в систему');
+        });
 }
 
 function register() {
-    const username = document.getElementById('register-username').value;
-    const email = document.getElementById('register-email').value;
+    const username = document.getElementById('register-username').value.trim();
+    const email = document.getElementById('register-email').value.trim();
     const password = document.getElementById('register-password').value;
+
+    if (!username || !email || !password) {
+        alert('Пожалуйста, заполните все поля');
+        return;
+    }
 
     fetch('/api/Auth/Register', {
         method: 'POST',
@@ -52,20 +89,29 @@ function register() {
         },
         body: JSON.stringify({ username, email, password })
     })
-        .then(response => response.json())
-        .then(data => {
-            if (data.message) {
-                alert('Регистрация успешна! Теперь войдите.');
-            } else {
-                alert('Ошибка регистрации');
+        .then(response => {
+            if (!response.ok) {
+                return response.json().then(err => Promise.reject(err));
             }
+            return response.json();
         })
-        .catch(error => console.error('Ошибка регистрации:', error));
+        .then(data => {
+            alert('Регистрация успешна! Теперь войдите в систему.');
+            document.getElementById('register-username').value = '';
+            document.getElementById('register-email').value = '';
+            document.getElementById('register-password').value = '';
+        })
+        .catch(error => {
+            console.error('Ошибка регистрации:', error);
+            alert(error.Message || 'Ошибка регистрации');
+        });
 }
 
 function logout() {
     localStorage.removeItem('token');
     token = null;
+    todos = [];
+    categories = [];
     checkAuth();
 }
 
@@ -75,12 +121,22 @@ function getItems() {
             'Authorization': `Bearer ${token}`
         }
     })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Ошибка получения списка дел');
+            }
+            return response.json();
+        })
         .then(data => {
             todos = data;
             filterItems();
         })
-        .catch(error => console.error('Unable to get items.', error));
+        .catch(error => {
+            console.error('Unable to get items.', error);
+            if (error.message.includes('401')) {
+                logout();
+            }
+        });
 }
 
 function getCategories() {
@@ -89,12 +145,22 @@ function getCategories() {
             'Authorization': `Bearer ${token}`
         }
     })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Ошибка получения категорий');
+            }
+            return response.json();
+        })
         .then(data => {
             categories = data;
             populateCategoryDropdowns();
         })
-        .catch(error => console.error('Unable to get categories.', error));
+        .catch(error => {
+            console.error('Unable to get categories.', error);
+            if (error.message.includes('401')) {
+                logout();
+            }
+        });
 }
 
 function populateCategoryDropdowns() {
@@ -128,10 +194,15 @@ function addItem() {
     const addNameTextbox = document.getElementById('add-name');
     const categoryDropdown = document.getElementById('add-category');
 
+    if (!addNameTextbox.value.trim()) {
+        alert('Пожалуйста, введите название дела');
+        return;
+    }
+
     const item = {
         isComplete: false,
         name: addNameTextbox.value.trim(),
-        categoryId: parseInt(categoryDropdown.value) || 0
+        categoryId: categoryDropdown.value ? parseInt(categoryDropdown.value) : null
     };
 
     fetch(todoUri, {
@@ -143,17 +214,30 @@ function addItem() {
         },
         body: JSON.stringify(item)
     })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Ошибка добавления дела');
+            }
+            return response.json();
+        })
         .then(() => {
             getItems();
             addNameTextbox.value = '';
             categoryDropdown.value = '';
         })
-        .catch(error => console.error('Unable to add item.', error));
+        .catch(error => {
+            console.error('Unable to add item.', error);
+            alert('Ошибка добавления дела');
+        });
 }
 
 function addCategory() {
     const categoryNameTextbox = document.getElementById('add-category-name');
+
+    if (!categoryNameTextbox.value.trim()) {
+        alert('Пожалуйста, введите название категории');
+        return;
+    }
 
     const category = {
         name: categoryNameTextbox.value.trim()
@@ -168,23 +252,43 @@ function addCategory() {
         },
         body: JSON.stringify(category)
     })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Ошибка добавления категории');
+            }
+            return response.json();
+        })
         .then(() => {
             getCategories();
             categoryNameTextbox.value = '';
         })
-        .catch(error => console.error('Unable to add category.', error));
+        .catch(error => {
+            console.error('Unable to add category.', error);
+            alert('Ошибка добавления категории');
+        });
 }
 
 function deleteItem(id) {
+    if (!confirm('Вы уверены, что хотите удалить это дело?')) {
+        return;
+    }
+
     fetch(todoUri + '/' + id, {
         method: 'DELETE',
         headers: {
             'Authorization': `Bearer ${token}`
         }
     })
-        .then(() => getItems())
-        .catch(error => console.error('Unable to delete item.', error));
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Ошибка удаления дела');
+            }
+            getItems();
+        })
+        .catch(error => {
+            console.error('Unable to delete item.', error);
+            alert('Ошибка удаления дела');
+        });
 }
 
 function displayEditForm(id) {
@@ -200,12 +304,18 @@ function displayEditForm(id) {
 function updateItem() {
     const itemId = document.getElementById('edit-id').value;
     const categoryDropdown = document.getElementById('edit-category');
+    const nameValue = document.getElementById('edit-name').value.trim();
+
+    if (!nameValue) {
+        alert('Пожалуйста, введите название дела');
+        return;
+    }
 
     const item = {
         id: parseInt(itemId, 10),
         isComplete: document.getElementById('edit-isComplete').checked,
-        name: document.getElementById('edit-name').value.trim(),
-        categoryId: parseInt(categoryDropdown.value) || 0
+        name: nameValue,
+        categoryId: categoryDropdown.value ? parseInt(categoryDropdown.value) : null
     };
 
     fetch(todoUri + '/' + itemId, {
@@ -217,10 +327,17 @@ function updateItem() {
         },
         body: JSON.stringify(item)
     })
-        .then(() => getItems())
-        .catch(error => console.error('Unable to update item.', error));
-
-    closeInput();
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Ошибка обновления дела');
+            }
+            getItems();
+            closeInput();
+        })
+        .catch(error => {
+            console.error('Unable to update item.', error);
+            alert('Ошибка обновления дела');
+        });
 
     return false;
 }
@@ -249,7 +366,14 @@ function filterItems() {
 }
 
 function _displayCount(itemCount) {
-    const name = (itemCount === 1) ? 'дело' : 'дела';
+    let name;
+    if (itemCount === 1) {
+        name = 'дело';
+    } else if (itemCount >= 2 && itemCount <= 4) {
+        name = 'дела';
+    } else {
+        name = 'дел';
+    }
     document.getElementById('counter').innerText = `${itemCount} ${name}`;
 }
 
@@ -275,6 +399,13 @@ function _displayItems(data) {
 
         let tr = tBody.insertRow();
 
+        // Добавляем класс для выполненных дел
+        if (item.isComplete) {
+            tr.style.backgroundColor = '#f0f8f0';
+            tr.style.textDecoration = 'line-through';
+            tr.style.opacity = '0.7';
+        }
+
         let td1 = tr.insertCell(0);
         td1.appendChild(isCompleteCheckbox);
 
@@ -293,6 +424,4 @@ function _displayItems(data) {
         let td5 = tr.insertCell(4);
         td5.appendChild(deleteButton);
     });
-
-    todos = data;
 }

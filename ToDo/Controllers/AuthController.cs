@@ -25,23 +25,64 @@ namespace ToDo.Controllers
         [HttpPost("Register")]
         public async Task<IActionResult> Register([FromBody] RegisterModel model)
         {
-            var user = new IdentityUser { UserName = model.Username, Email = model.Email };
-            var result = await _userManager.CreateAsync(user, model.Password);
-
-            if (result.Succeeded)
+            try
             {
-                return Ok(new { Message = "User registered successfully" });
-            }
+                if (string.IsNullOrEmpty(model.Username) || string.IsNullOrEmpty(model.Email) || string.IsNullOrEmpty(model.Password))
+                {
+                    return BadRequest(new { Message = "Все поля обязательны для заполнения" });
+                }
 
-            return BadRequest(result.Errors);
+                var existingUser = await _userManager.FindByNameAsync(model.Username);
+                if (existingUser != null)
+                {
+                    return BadRequest(new { Message = "Пользователь с таким именем уже существует" });
+                }
+
+                var existingEmail = await _userManager.FindByEmailAsync(model.Email);
+                if (existingEmail != null)
+                {
+                    return BadRequest(new { Message = "Пользователь с таким email уже существует" });
+                }
+
+                var user = new IdentityUser { UserName = model.Username, Email = model.Email };
+                var result = await _userManager.CreateAsync(user, model.Password);
+
+                if (result.Succeeded)
+                {
+                    return Ok(new { Message = "Пользователь успешно зарегистрирован" });
+                }
+
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                return BadRequest(new { Message = $"Ошибка регистрации: {errors}" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = $"Внутренняя ошибка сервера: {ex.Message}" });
+            }
         }
 
         [HttpPost("Login")]
         public async Task<IActionResult> Login([FromBody] LoginModel model)
         {
-            var user = await _userManager.FindByNameAsync(model.Username);
-            if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
+            try
             {
+                if (string.IsNullOrEmpty(model.Username) || string.IsNullOrEmpty(model.Password))
+                {
+                    return BadRequest(new { Message = "Имя пользователя и пароль обязательны" });
+                }
+
+                var user = await _userManager.FindByNameAsync(model.Username);
+                if (user == null)
+                {
+                    return Unauthorized(new { Message = "Неверное имя пользователя или пароль" });
+                }
+
+                var passwordCheck = await _userManager.CheckPasswordAsync(user, model.Password);
+                if (!passwordCheck)
+                {
+                    return Unauthorized(new { Message = "Неверное имя пользователя или пароль" });
+                }
+
                 var authClaims = new List<Claim>
                 {
                     new Claim(ClaimTypes.NameIdentifier, user.Id),
@@ -62,11 +103,14 @@ namespace ToDo.Controllers
                 return Ok(new
                 {
                     token = new JwtSecurityTokenHandler().WriteToken(token),
-                    expiration = token.ValidTo
+                    expiration = token.ValidTo,
+                    username = user.UserName
                 });
             }
-
-            return Unauthorized();
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = $"Внутренняя ошибка сервера: {ex.Message}" });
+            }
         }
     }
 

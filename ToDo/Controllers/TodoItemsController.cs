@@ -59,9 +59,19 @@ namespace ToDo.Controllers
                 return NotFound();
             }
 
+            // Проверяем, что категория принадлежит пользователю (если указана)
+            if (todoItem.CategoryId.HasValue && todoItem.CategoryId > 0)
+            {
+                var category = await _context.ItemCategories.FindAsync(todoItem.CategoryId);
+                if (category == null || category.UserId != userId)
+                {
+                    return BadRequest("Указанная категория не найдена или не принадлежит пользователю");
+                }
+            }
+
             existingItem.Name = todoItem.Name;
             existingItem.IsComplete = todoItem.IsComplete;
-            existingItem.CategoryId = todoItem.CategoryId;
+            existingItem.CategoryId = todoItem.CategoryId > 0 ? todoItem.CategoryId : null;
 
             _context.Entry(existingItem).State = EntityState.Modified;
 
@@ -86,6 +96,20 @@ namespace ToDo.Controllers
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             todoItem.UserId = userId;
+
+            // Проверяем, что категория принадлежит пользователю (если указана)
+            if (todoItem.CategoryId.HasValue && todoItem.CategoryId > 0)
+            {
+                var category = await _context.ItemCategories.FindAsync(todoItem.CategoryId);
+                if (category == null || category.UserId != userId)
+                {
+                    return BadRequest("Указанная категория не найдена или не принадлежит пользователю");
+                }
+            }
+            else
+            {
+                todoItem.CategoryId = null;
+            }
 
             _context.TodoItems.Add(todoItem);
             await _context.SaveChangesAsync();
