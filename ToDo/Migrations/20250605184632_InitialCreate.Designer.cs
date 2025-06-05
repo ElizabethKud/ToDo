@@ -12,7 +12,7 @@ using ToDo.Models;
 namespace ToDo.Migrations
 {
     [DbContext(typeof(TodoContext))]
-    [Migration("20250604205117_InitialCreate")]
+    [Migration("20250605184632_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -253,6 +253,9 @@ namespace ToDo.Migrations
                     b.Property<long?>("CategoryId")
                         .HasColumnType("bigint");
 
+                    b.Property<int>("CurrentStatus")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsComplete")
                         .HasColumnType("boolean");
 
@@ -260,7 +263,7 @@ namespace ToDo.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("Status")
+                    b.Property<int?>("Status")
                         .HasColumnType("integer");
 
                     b.Property<string>("UserId")

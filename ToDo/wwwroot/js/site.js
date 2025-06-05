@@ -134,7 +134,7 @@ async function handleRegister(e) {
             showNotification("Регистрация успешна! Теперь войдите в систему.", "success")
             // Переключаемся на вкладку входа
             document.getElementById("login-tab").click()
-            // Очища��м форму регистрации
+            // Очищаем форму регистрации
             document.getElementById("registerForm").reset()
         } else {
             showNotification(data.message || "Ошибка регистрации", "error")
@@ -170,9 +170,11 @@ async function loadCategories() {
             updateCategorySelects()
         } else {
             console.error("Failed to load categories")
+            showNotification("Ошибка загрузки категорий", "error")
         }
     } catch (error) {
         console.error("Error loading categories:", error)
+        showNotification("Ошибка соединения с сервером", "error")
     }
 }
 
@@ -240,6 +242,7 @@ async function handleCreateCategory(e) {
 // Загрузка дел
 async function loadTodos() {
     try {
+        console.log("Loading todos...")
         const response = await fetch("/api/TodoItems", {
             headers: {
                 Authorization: `Bearer ${authToken}`,
@@ -248,9 +251,13 @@ async function loadTodos() {
 
         if (response.ok) {
             todos = await response.json()
+            console.log("Loaded todos:", todos)
             renderTodos()
+            updateStatistics()
         } else {
-            console.error("Failed to load todos")
+            console.error("Failed to load todos, status:", response.status)
+            const errorText = await response.text()
+            console.error("Error response:", errorText)
             showNotification("Ошибка загрузки дел", "error")
         }
     } catch (error) {
@@ -272,32 +279,61 @@ async function handleCreateTodo(e) {
         return
     }
 
+    console.log("Creating todo:", { name, categoryId, status })
+
     try {
+        const requestBody = {
+            name,
+            categoryId: categoryId ? Number.parseInt(categoryId) : null,
+            status,
+        }
+
+        console.log("Request body:", requestBody)
+
         const response = await fetch("/api/TodoItems", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${authToken}`,
             },
-            body: JSON.stringify({
-                name,
-                categoryId: categoryId ? Number.parseInt(categoryId) : null,
-                status,
-            }),
+            body: JSON.stringify(requestBody),
         })
 
+        console.log("Response status:", response.status)
+
         if (response.ok) {
+            const result = await response.json()
+            console.log("Created todo:", result)
             showNotification("Дело создано успешно!", "success")
             document.getElementById("todoForm").reset()
             loadTodos()
         } else {
-            const error = await response.json()
-            showNotification(error.message || "Ошибка создания дела", "error")
+            const errorText = await response.text()
+            console.error("Error response:", errorText)
+            try {
+                const error = JSON.parse(errorText)
+                showNotification(error.message || "Ошибка создания дела", "error")
+            } catch {
+                showNotification("Ошибка создания дела", "error")
+            }
         }
     } catch (error) {
         console.error("Error creating todo:", error)
         showNotification("Ошибка соединения с сервером", "error")
     }
+}
+
+// Обновление статистики
+function updateStatistics() {
+    const total = todos.length
+    const notStarted = todos.filter((t) => t.status === 0).length
+    const inProgress = todos.filter((t) => t.status === 1).length
+    const completed = todos.filter((t) => t.status === 2).length
+
+    document.getElementById("totalTodos").textContent = total
+    document.getElementById("notStartedTodos").textContent = notStarted
+    document.getElementById("inProgressTodos").textContent = inProgress
+    document.getElementById("completedTodos").textContent = completed
 }
 
 // Отображение дел
@@ -403,6 +439,7 @@ async function updateTodoStatus(id, status) {
             if (todo) {
                 todo.status = Number.parseInt(status)
             }
+            updateStatistics()
             showNotification("Статус обновлен!", "success")
         } else {
             const error = await response.json()
@@ -418,9 +455,18 @@ async function updateTodoStatus(id, status) {
 
 // Редактирование дела
 function editTodo(id) {
-    const todo = todos.find((t) => t.id === id)
-    if (!todo) return
+    console.log("Edit todo called with id:", id)
 
+    const todo = todos.find((t) => t.id === id)
+    if (!todo) {
+        console.error("Todo not found:", id)
+        showNotification("Дело не найдено", "error")
+        return
+    }
+
+    console.log("Found todo:", todo)
+
+    // Заполняем форму
     document.getElementById("editId").value = todo.id
     document.getElementById("editName").value = todo.name
     document.getElementById("editCategory").value = todo.categoryId || ""
@@ -429,8 +475,20 @@ function editTodo(id) {
     // Обновляем категории в модальном окне
     updateCategorySelects()
 
-    const modal = bootstrap.Modal.getInstance(document.getElementById("editModal"))
-    modal.show()
+    // Показываем модальное окно
+    try {
+        const modalElement = document.getElementById("editModal")
+        console.log("Modal element:", modalElement)
+
+        const modal = new bootstrap.Modal(modalElement)
+        console.log("Modal instance created:", modal)
+
+        modal.show()
+        console.log("Modal show called")
+    } catch (error) {
+        console.error("Error showing modal:", error)
+        showNotification("Ошибка открытия окна редактирования", "error")
+    }
 }
 
 // Сохранение изменений
@@ -462,7 +520,14 @@ async function saveEdit() {
 
         if (response.ok) {
             showNotification("Дело обновлено успешно!", "success")
-            bootstrap.Modal.getInstance(document.getElementById("editModal")).hide()
+
+            // Закрываем модальное окно
+            const modalElement = document.getElementById("editModal")
+            const modal = bootstrap.Modal.getInstance(modalElement)
+            if (modal) {
+                modal.hide()
+            }
+
             loadTodos()
         } else {
             const error = await response.json()
@@ -498,28 +563,6 @@ async function deleteTodo(id) {
     } catch (error) {
         console.error("Error deleting todo:", error)
         showNotification("Ошибка соединения с сервером", "error")
-    }
-}
-
-// Тест API категорий
-async function testCategoryAPI() {
-    try {
-        const response = await fetch("/api/ItemCategories", {
-            headers: {
-                Authorization: `Bearer ${authToken}`,
-            },
-        })
-
-        if (response.ok) {
-            const data = await response.json()
-            showNotification(`API работает! Найдено категорий: ${data.length}`, "success")
-            console.log("Categories:", data)
-        } else {
-            showNotification("Ошибка API категорий", "error")
-        }
-    } catch (error) {
-        console.error("API test error:", error)
-        showNotification("Ошибка соединения с API", "error")
     }
 }
 

@@ -31,23 +31,24 @@ namespace ToDo.Controllers
                 var items = await _context.TodoItems
                     .Where(t => t.UserId == userId)
                     .Include(t => t.Category)
-                    .Select(t => new TodoItemDto
-                    {
-                        Id = t.Id,
-                        Name = t.Name,
-                        Status = t.Status,
-                        IsComplete = t.IsComplete,
-                        CategoryId = t.CategoryId,
-                        Category = t.Category != null ? new CategoryDto
-                        {
-                            Id = t.Category.Id,
-                            Name = t.Category.Name
-                        } : null
-                    })
                     .ToListAsync();
                 
-                _logger.LogInformation($"Found {items.Count} todo items");
-                return Ok(items);
+                var result = items.Select(t => new TodoItemDto
+                {
+                    Id = t.Id,
+                    Name = t.Name,
+                    Status = t.CurrentStatus,
+                    IsComplete = t.IsComplete,
+                    CategoryId = t.CategoryId,
+                    Category = t.Category != null ? new CategoryDto
+                    {
+                        Id = t.Category.Id,
+                        Name = t.Category.Name
+                    } : null
+                }).ToList();
+                
+                _logger.LogInformation($"Found {result.Count} todo items");
+                return Ok(result);
             }
             catch (Exception ex)
             {
@@ -65,12 +66,18 @@ namespace ToDo.Controllers
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 _logger.LogInformation($"User ID: {userId}");
+                _logger.LogInformation($"Request object: {request?.GetType().Name}");
+                _logger.LogInformation($"Request is null: {request == null}");
                 
                 if (request == null)
                 {
                     _logger.LogWarning("Request is null");
                     return BadRequest(new { Message = "Данные не переданы" });
                 }
+
+                _logger.LogInformation($"Request name: '{request.Name}'");
+                _logger.LogInformation($"Request status: {request.Status}");
+                _logger.LogInformation($"Request categoryId: {request.CategoryId}");
 
                 if (string.IsNullOrWhiteSpace(request.Name))
                 {
@@ -97,7 +104,7 @@ namespace ToDo.Controllers
                 var newTodoItem = new TodoItem
                 {
                     Name = request.Name.Trim(),
-                    Status = request.Status,
+                    CurrentStatus = request.Status,
                     UserId = userId,
                     CategoryId = request.CategoryId > 0 ? request.CategoryId : null
                 };
@@ -108,18 +115,23 @@ namespace ToDo.Controllers
                 _logger.LogInformation("Saving changes to database");
                 await _context.SaveChangesAsync();
 
-                // Возвращаем DTO вместо Entity
+                // Перезагружаем объект с категорией
+                var savedItem = await _context.TodoItems
+                    .Include(t => t.Category)
+                    .FirstOrDefaultAsync(t => t.Id == newTodoItem.Id);
+
+                // Возвращаем DTO
                 var result = new TodoItemDto
                 {
-                    Id = newTodoItem.Id,
-                    Name = newTodoItem.Name,
-                    Status = newTodoItem.Status,
-                    IsComplete = newTodoItem.IsComplete,
-                    CategoryId = newTodoItem.CategoryId,
-                    Category = category != null ? new CategoryDto
+                    Id = savedItem.Id,
+                    Name = savedItem.Name,
+                    Status = savedItem.CurrentStatus,
+                    IsComplete = savedItem.IsComplete,
+                    CategoryId = savedItem.CategoryId,
+                    Category = savedItem.Category != null ? new CategoryDto
                     {
-                        Id = category.Id,
-                        Name = category.Name
+                        Id = savedItem.Category.Id,
+                        Name = savedItem.Category.Name
                     } : null
                 };
 
@@ -152,7 +164,7 @@ namespace ToDo.Controllers
                 {
                     Id = todoItem.Id,
                     Name = todoItem.Name,
-                    Status = todoItem.Status,
+                    Status = todoItem.CurrentStatus,
                     IsComplete = todoItem.IsComplete,
                     CategoryId = todoItem.CategoryId,
                     Category = todoItem.Category != null ? new CategoryDto
@@ -210,7 +222,7 @@ namespace ToDo.Controllers
                 }
 
                 existingItem.Name = request.Name.Trim();
-                existingItem.Status = request.Status;
+                existingItem.CurrentStatus = request.Status;
                 existingItem.CategoryId = request.CategoryId > 0 ? request.CategoryId : null;
 
                 _context.Entry(existingItem).State = EntityState.Modified;
@@ -248,7 +260,7 @@ namespace ToDo.Controllers
                     return NotFound(new { Message = "Дело не найдено" });
                 }
 
-                existingItem.Status = request.Status;
+                existingItem.CurrentStatus = request.Status;
                 _context.Entry(existingItem).State = EntityState.Modified;
                 await _context.SaveChangesAsync();
 

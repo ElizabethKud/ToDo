@@ -168,23 +168,52 @@
                 </div>
             </div>
 
+            <!-- Статистика -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="fas fa-list-ul text-primary me-2"></i>
+                                <span><strong>Всего дел:</strong> <span id="totalTodos" class="badge bg-primary">0</span></span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="fas fa-circle text-danger me-2"></i>
+                                <span><strong>Не выполнено:</strong> <span id="notStartedTodos" class="badge bg-danger">0</span></span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="fas fa-clock text-warning me-2"></i>
+                                <span><strong>В процессе:</strong> <span id="inProgressTodos" class="badge bg-warning">0</span></span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="d-flex align-items-center justify-content-center">
+                                <i class="fas fa-check-circle text-success me-2"></i>
+                                <span><strong>Выполнено:</strong> <span id="completedTodos" class="badge bg-success">0</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Таблица дел -->
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-list me-2"></i>Список дел</h5>
                     <div>
-                        <button class="btn btn-outline-primary btn-sm me-2" onclick="loadTodos()">
+                        <button class="btn btn-outline-light btn-sm" onclick="loadTodos()">
                             <i class="fas fa-sync-alt me-1"></i>Обновить
-                        </button>
-                        <button class="btn btn-outline-info btn-sm" onclick="testCategoryAPI()">
-                            <i class="fas fa-vial me-1"></i>Тест API
                         </button>
                     </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-hover">
-                            <thead class="table-light">
+                            <thead class="table-dark">
                             <tr>
                                 <th>Название дела</th>
                                 <th>Категория</th>
@@ -208,12 +237,12 @@
 </div>
 
 <!-- Модальное окно редактирования -->
-<div class="modal fade" id="editModal" tabindex="-1">
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Редактировать дело</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="editModalLabel">Редактировать дело</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <form id="editForm">

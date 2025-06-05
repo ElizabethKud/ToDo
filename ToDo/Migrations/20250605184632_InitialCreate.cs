@@ -178,10 +178,11 @@ namespace ToDo.Migrations
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "text", nullable: false),
-                    Status = table.Column<int>(type: "integer", nullable: false),
+                    Status = table.Column<int>(type: "integer", nullable: true),
                     IsComplete = table.Column<bool>(type: "boolean", nullable: false),
                     UserId = table.Column<string>(type: "text", nullable: false),
-                    CategoryId = table.Column<long>(type: "bigint", nullable: true)
+                    CategoryId = table.Column<long>(type: "bigint", nullable: true),
+                    CurrentStatus = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
