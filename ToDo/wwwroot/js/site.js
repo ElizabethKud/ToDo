@@ -3,7 +3,7 @@ let authToken = localStorage.getItem("authToken")
 let currentUser = localStorage.getItem("currentUser")
 let todos = []
 let categories = []
-const bootstrap = window.bootstrap // Declare the bootstrap variable
+const bootstrap = window.bootstrap 
 
 // Статусы
 const TodoStatus = {
@@ -82,7 +82,8 @@ async function handleLogin(e) {
 
     const username = document.getElementById("loginUsername").value
     const password = document.getElementById("loginPassword").value
-
+    
+    // Отправляет POST-запрос на /api/Auth/login, сохраняет токен и имя пользователя в localStorage, показывает приложение
     try {
         const response = await fetch("/api/Auth/login", {
             method: "POST",
@@ -119,6 +120,7 @@ async function handleRegister(e) {
     const email = document.getElementById("registerEmail").value
     const password = document.getElementById("registerPassword").value
 
+    // Отправляет POST-запрос на /api/Auth/register, при успехе переключает на вкладку входа
     try {
         const response = await fetch("/api/Auth/register", {
             method: "POST",
@@ -146,6 +148,7 @@ async function handleRegister(e) {
 }
 
 // Выход из системы
+// Очищает localStorage и возвращает на экран входа
 function logout() {
     authToken = null
     currentUser = null
@@ -158,6 +161,7 @@ function logout() {
 
 // Загрузка категорий
 async function loadCategories() {
+    // Запрашивает категории у сервера (/api/ItemCategories)
     try {
         const response = await fetch("/api/ItemCategories", {
             headers: {
@@ -215,6 +219,7 @@ async function handleCreateCategory(e) {
         return
     }
 
+    // Создаёт новую категорию через POST-запрос
     try {
         const response = await fetch("/api/ItemCategories", {
             method: "POST",
@@ -239,7 +244,7 @@ async function handleCreateCategory(e) {
     }
 }
 
-// Загрузка дел
+// Загружает список дел с сервера (/api/TodoItems)
 async function loadTodos() {
     try {
         console.log("Loading todos...")
@@ -266,7 +271,7 @@ async function loadTodos() {
     }
 }
 
-// Создание дела
+// Создаёт новое дело через POST-запрос
 async function handleCreateTodo(e) {
     e.preventDefault()
 
@@ -336,7 +341,7 @@ function updateStatistics() {
     document.getElementById("completedTodos").textContent = completed
 }
 
-// Отображение дел
+// Отображает список дел в таблице, применяя фильтры
 function renderTodos() {
     const tbody = document.getElementById("todoList")
 
@@ -421,7 +426,7 @@ function clearFilters() {
     renderTodos()
 }
 
-// Быстрое обновление статуса
+// Обновляет статус дела через PATCH-запрос
 async function updateTodoStatus(id, status) {
     try {
         const response = await fetch(`/api/TodoItems/${id}/status`, {
@@ -453,7 +458,7 @@ async function updateTodoStatus(id, status) {
     }
 }
 
-// Редактирование дела
+// Открывает модальное окно для редактирования дела
 function editTodo(id) {
     console.log("Edit todo called with id:", id)
 
@@ -491,7 +496,7 @@ function editTodo(id) {
     }
 }
 
-// Сохранение изменений
+// Сохраняет изменения через PUT запрос
 async function saveEdit() {
     const id = Number.parseInt(document.getElementById("editId").value)
     const name = document.getElementById("editName").value.trim()
@@ -539,7 +544,7 @@ async function saveEdit() {
     }
 }
 
-// Удаление дела
+// Удаляет дело через DELETE запрос
 async function deleteTodo(id) {
     if (!confirm("Вы уверены, что хотите удалить это дело?")) {
         return
